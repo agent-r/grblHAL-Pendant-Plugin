@@ -148,6 +148,12 @@ static void pendant_send(sys_state_t state, bool AlwaysSend) {
 
         // static byte state_number = 11;
         static char StateStr[10];
+        static sys_state_t stateOld;
+   
+        if (memcmp(state, stateOld, sizeof(state)) != 0) {
+                AlwaysSend = true;  // We Send, because state has changed!
+                memcpy(stateOld, state, sizeof(state));
+        }
 
         if (AlwaysSend) {               // state change is already checked!
                 switch (state) {
