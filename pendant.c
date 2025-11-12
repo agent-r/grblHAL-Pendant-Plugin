@@ -22,15 +22,15 @@
 #include <string.h>
 #include "pendant.h"
 
-static io_stream_t pendant_serial;
+static io_stream_t pendant_serial; 
 static on_report_options_ptr on_report_options;
 static on_execute_realtime_ptr on_execute_realtime;
 static on_state_change_ptr on_state_change;
 // #define OVERRIDE_BUFSIZE 1024        // does it help??
 
 
-#define INBUF_SIZE 50               // I do not expect larger commands
-#define OUTBUF_SIZE 100             // I will not send larger State-Updates
+#define INBUF_SIZE 128               // I do not expect larger commands
+#define OUTBUF_SIZE 128             // I will not send larger State-Updates
 // #define STATEBUF_SIZE 8
 
 #define AliveTicks 1000 * 2         // check for "OK" every 2 seconds
@@ -87,19 +87,19 @@ static void pendant_parse_and_send_cmd(const char * const cmd_buffer) {
                         {
                                 // grbl.enqueue_realtime_command(CMD_JOG_CANCEL);
                                 grbl.enqueue_realtime_command(CMD_STOP);
-                                // strcpy(SysExecuteCommand, "$");
+                                // strncpy(SysExecuteCommand, "$", sizeof(SysExecuteCommand) - 1);
                                 // system_execute_line(SysExecuteCommand);     // must be at least "LINE_BUFFER_SIZE" long ???
                         }
                         else if (strcmp(str_cmd, "HOME") == 0)
                         {
-                                strcpy(SysExecuteCommand, "$H");
+                                strncpy(SysExecuteCommand, "$H", sizeof(SysExecuteCommand) - 1);
                                 system_execute_line(SysExecuteCommand);     // must be at least "LINE_BUFFER_SIZE" long ???
                                 // system_execute_line("$H");
                         }
                         else if (strcmp(str_cmd, "UNLOCK") == 0)
                         {
                                 // system_execute_line("$X");
-                                strcpy(SysExecuteCommand, "$X");
+                                strncpy(SysExecuteCommand, "$X", sizeof(SysExecuteCommand) - 1);
                                 system_execute_line(SysExecuteCommand);     // must be at least "LINE_BUFFER_SIZE" long ???
                         }
                 }
@@ -141,6 +141,8 @@ static void pendant_parse_and_send_cmd(const char * const cmd_buffer) {
                 AliveMs = hal.get_elapsed_ticks() + AliveTicks;
                 if (pendant_debug_in) { hal.stream.write("[OK]"); hal.stream.write(ASCII_EOL); }
         }
+
+        cJSON_Delete(cmd_json); // GPT IMPROVED ?
 }
 
 
@@ -150,48 +152,56 @@ static void pendant_send(sys_state_t state, bool AlwaysSend) {
         static char StateStr[10];
         static sys_state_t stateOld;
    
+        /* 
         if (memcmp(state, stateOld, sizeof(state)) != 0) {
                 AlwaysSend = true;  // We Send, because state has changed!
                 memcpy(stateOld, state, sizeof(state));
+        }
+        */
+
+        // GPT IMPROVED ?
+        if (state != stateOld) {
+                AlwaysSend = true;  // state has changed
+                stateOld = state;
         }
 
         if (AlwaysSend) {               // state change is already checked!
                 switch (state) {
                 case STATE_IDLE:
-                        strcpy(StateStr, "Idle"); break;
+                        strncpy(StateStr, "Idle", sizeof(StateStr) - 1); break;
                 // state_number = 0; break;
                 case STATE_CYCLE:
-                        strcpy(StateStr, "Idle"); break;
+                        strncpy(StateStr, "Idle", sizeof(StateStr) - 1); break;
                 // state_number = 1; break;
                 case STATE_HOLD:
-                        strcpy(StateStr, "Hold"); break;
+                        strncpy(StateStr, "Hold", sizeof(StateStr) - 1); break;
                 // state_number = 2; break;
                 case STATE_JOG:
-                        strcpy(StateStr, "Jogging"); break;
+                        strncpy(StateStr, "Jogging", sizeof(StateStr) - 1); break;
                 // state_number = 3; break;
                 case STATE_HOMING:
-                        strcpy(StateStr, "Homing"); break;
+                        strncpy(StateStr, "Homing", sizeof(StateStr) - 1); break;
                 // state_number = 4; break;
                 case STATE_ESTOP:
-                        strcpy(StateStr, "Error"); break;
+                        strncpy(StateStr, "Error", sizeof(StateStr) - 1); break;
                 // state_number = 5; break;
                 case STATE_ALARM:
-                        strcpy(StateStr, "Alarm"); break;
+                        strncpy(StateStr, "Alarm", sizeof(StateStr) - 1); break;
                 // state_number = 6; break;
                 case STATE_CHECK_MODE:
-                        strcpy(StateStr, "Check"); break;
+                        strncpy(StateStr, "Check", sizeof(StateStr) - 1); break;
                 // state_number = 7; break;
                 case STATE_SAFETY_DOOR:
-                        strcpy(StateStr, "Door"); break;
+                        strncpy(StateStr, "Door", sizeof(StateStr) - 1); break;
                 // state_number = 8; break;
                 case STATE_SLEEP:
-                        strcpy(StateStr, "Sleep"); break;
+                        strncpy(StateStr, "Sleep", sizeof(StateStr) - 1); break;
                 // state_number = 9; break;
                 case STATE_TOOL_CHANGE:
-                        strcpy(StateStr, "Tool"); break;
+                        strncpy(StateStr, "Tool", sizeof(StateStr) - 1); break;
                 // state_number = 10; break;
                 default:
-                        strcpy(StateStr, "N/A"); break;
+                        strncpy(StateStr, "N/A", sizeof(StateStr) - 1); break;
                         // state_number = 11; break;
                 }
         }
@@ -217,9 +227,9 @@ static void pendant_send(sys_state_t state, bool AlwaysSend) {
         // prepare JSON String for Sending
         if (AlwaysSend) {
                 char wifi_out_buffer[OUTBUF_SIZE];
-                if (N_AXIS == 3) { sprintf(wifi_out_buffer, "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f}", StateStr, float_pos[0], float_pos[1], float_pos[2]); }
-                else if (N_AXIS == 4) { sprintf(wifi_out_buffer, "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f}", StateStr, float_pos[0], float_pos[1], float_pos[2], float_pos[3]); }
-                // else if (N_AXIS == 5) { sprintf(wifi_out_buffer, "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f,\"wb\":%.3f}"ASCII_EOL, string_state, float_pos[0], float_pos[1], float_pos[2], float_pos[3], float_pos[4]); }
+                if (N_AXIS == 3) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f}", StateStr, float_pos[0], float_pos[1], float_pos[2]); }
+                else if (N_AXIS == 4) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f}", StateStr, float_pos[0], float_pos[1], float_pos[2], float_pos[3]); }
+                // else if (N_AXIS == 5) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f,\"wb\":%.3f}"ASCII_EOL, string_state, float_pos[0], float_pos[1], float_pos[2], float_pos[3], float_pos[4]); }
                 pendant_serial.write(wifi_out_buffer);
                 if (pendant_debug_out) {hal.stream.write(wifi_out_buffer); hal.stream.write(ASCII_EOL);}
         }
@@ -247,6 +257,7 @@ static void pendant_receive() {
                         in_buffer[i] = in;
                 }
                 else if (in == '}') {
+                        /* GPT IMPROVED ?
                         i++;
                         in_buffer[i] = in;
                         in_buffer[i+1] = '\0';
@@ -254,12 +265,37 @@ static void pendant_receive() {
                         if (in_buffer[0] == '{') {
                                 pendant_parse_and_send_cmd(in_buffer);
                         }
+                                */
+                        if (i < INBUF_SIZE - 2) {  // Platz für } und \0 prüfen
+                                i++;
+                                in_buffer[i] = in;
+                                in_buffer[i+1] = '\0';
+                                i = 0; // bereit für nächsten JSON
+                                pendant_parse_and_send_cmd(in_buffer);
+                        } 
+                        else {
+                        // Puffer voll, JSON verwerfen
+                        i = 0;
+                        // Optional: Debugmeldung
+                        if (pendant_debug_in) hal.stream.write("[JSON overflow]" ASCII_EOL);
+                        }
                 }
                 else {
+
+                        if (i < INBUF_SIZE - 2) {
+                                i++;
+                                in_buffer[i] = in;
+                            } else {
+                                // Puffer voll, JSON verwerfen
+                                i = 0;
+                                if (pendant_debug_in) hal.stream.write("[JSON overflow]" ASCII_EOL);
+                            }
+                        /* GPT IMPROVED ?
                         if (i < (sizeof(in_buffer)-3)) {
                                 i++;
                                 in_buffer[i] = in;
                         }
+                        */
                 }
         }
 }
