@@ -14,46 +14,32 @@
                 Do I overflow a buffer or something? How can I check this, before sending enquee a command?
  */
 
-// TODE: all needed?
-#include "driver.h"
 #include "grbl/hal.h"
 #include "networking/cJSON.h"
 #include "grbl/protocol.h"
-#include "grbl/report.h"
-#include "grbl/override.h"
-#include "grbl/nvs_buffer.h"
-#include "grbl/state_machine.h"
 #include <stdio.h>
 #include <string.h>
-#include "pendant.h"
-#include "uart.h"
 
 #define PENDANT_SERIAL_STREAM 1
 #define PENDANT_SERIAL_BAUDRATE  115200
 static io_stream_t *pendant_serial = NULL;
 
-// static const io_stream_t *pendant_serial = NULL;
-// static io_stream_t pendant_serial; 
-
 static on_report_options_ptr on_report_options;
 static on_execute_realtime_ptr on_execute_realtime;
 static on_state_change_ptr on_state_change;
-
 
 #define INBUF_SIZE 128               // I do not expect larger commands
 #define OUTBUF_SIZE 128             // I will not send larger State-Updates
 static bool JSON_received = false;
 static char JSON[INBUF_SIZE];
 
+// #define AliveTicks 1000 * 2          // check for "OK" every 2 seconds
+#define SendTicks 1000 / 8              // send 8 position updates per second (if position changes)
+#define SendAlwaysTicks 1000 / 1        // send 1 update per second if nothing changes (keep alive!)
 
-#define AliveTicks 1000 * 2         // check for "OK" every 2 seconds
-#define SendTicks 1000 / 8           // send 5 position updates per second (if position changes)
-#define SendAlwaysTicks 1000 / 1    // send 1 update per second if nothing changes (keep alive!)
-#define ReceiveTicks 1000 / 10        // receive commands 10 times per second
 // static uint32_t CheckAliveMs = 0;
 static uint32_t SendMs = 0;
 static uint32_t SendAlwaysMs = 0;
-// static uint32_t ReceiveMs = ReceiveTicks;
 
 // #define pendant_debug_in 1                   // debug inputs and outputs
 // #define pendant_debug_in_raw 1
@@ -152,7 +138,6 @@ static void pendant_parse_and_send_cmd(const char * const cmd_buffer) {
 
 static void pendant_send(sys_state_t state, bool StateChange) {
 
-        // static byte state_number = 11;
         static char StateStr[10];
 
         if (pendant_serial && pendant_serial->type == StreamType_Serial) {
@@ -161,40 +146,28 @@ static void pendant_send(sys_state_t state, bool StateChange) {
                         switch (state) {
                         case STATE_IDLE:
                                 strncpy(StateStr, "Idle", sizeof(StateStr) - 1); break;
-                        // state_number = 0; break;
                         case STATE_CYCLE:
                                 strncpy(StateStr, "Idle", sizeof(StateStr) - 1); break;
-                        // state_number = 1; break;
                         case STATE_HOLD:
                                 strncpy(StateStr, "Hold", sizeof(StateStr) - 1); break;
-                        // state_number = 2; break;
                         case STATE_JOG:
                                 strncpy(StateStr, "Jogging", sizeof(StateStr) - 1); break;
-                        // state_number = 3; break;
                         case STATE_HOMING:
                                 strncpy(StateStr, "Homing", sizeof(StateStr) - 1); break;
-                        // state_number = 4; break;
                         case STATE_ESTOP:
                                 strncpy(StateStr, "Error", sizeof(StateStr) - 1); break;
-                        // state_number = 5; break;
                         case STATE_ALARM:
                                 strncpy(StateStr, "Alarm", sizeof(StateStr) - 1); break;
-                        // state_number = 6; break;
                         case STATE_CHECK_MODE:
                                 strncpy(StateStr, "Check", sizeof(StateStr) - 1); break;
-                        // state_number = 7; break;
                         case STATE_SAFETY_DOOR:
                                 strncpy(StateStr, "Door", sizeof(StateStr) - 1); break;
-                        // state_number = 8; break;
                         case STATE_SLEEP:
                                 strncpy(StateStr, "Sleep", sizeof(StateStr) - 1); break;
-                        // state_number = 9; break;
                         case STATE_TOOL_CHANGE:
                                 strncpy(StateStr, "Tool", sizeof(StateStr) - 1); break;
-                        // state_number = 10; break;
                         default:
                                 strncpy(StateStr, "N/A", sizeof(StateStr) - 1); break;
-                                // state_number = 11; break;
                         }
                 }
 
@@ -312,7 +285,7 @@ static void state_changed(sys_state_t state)
 }
 
 
-// Say hello, pendant!
+// time to set up serial stream
 static void report_options (bool newopt)
 {
         on_report_options(newopt);
@@ -320,7 +293,6 @@ static void report_options (bool newopt)
                 
                 report_message("PENDANT -> STARTED", Message_Info);
 
-                // pendant_serial = (io_stream_t *) stream_open_instance(PENDANT_SERIAL_STREAM, PENDANT_SERIAL_BAUDRATE, NULL, "Pendant");
                 if (!pendant_serial) {
                         pendant_serial = (io_stream_t *) stream_open_instance(PENDANT_SERIAL_STREAM, PENDANT_SERIAL_BAUDRATE, pendant_receive_callback, "Pendant");
                 }
@@ -339,31 +311,9 @@ static void report_options (bool newopt)
 }
 
 
-
 // initialize pendant
-bool pendant_init (const io_stream_t *stream)
-// bool pendant_init (void)
+void pendant_init (void)
 {
-
-        // hal.stream.write("[DEBUG INFO]" ASCII_EOL); // DOES NOT WORK AT THIS POINT !!!
-
-        // initialize serial stream
-
-        // memcpy(&pendant_serial, serialInit(115200), sizeof(io_stream_t));
-        // pendant_serial = serial1Init(115200);
-        // pendant_serial = serial1Init(115200);
-        // serial1Init(115200);
-        // pendant_serial = serial[1].claim(115200);
-        // pendant_serial = stream_open_instance(1, 115200, NULL, "Pendant UART1");
-        // pendant_serial = (io_stream_t *) stream_open_instance(PENDANT_SERIAL_STREAM, 115200, NULL, "Pendant");
-        
-        /*
-        if (!pendant_serial) {
-                return false;
-        }
-        */
-
-
 
         // Add pendant_update function to grblHAL foreground process
         on_execute_realtime = grbl.on_execute_realtime;
@@ -376,7 +326,5 @@ bool pendant_init (const io_stream_t *stream)
         // Add report
         on_report_options = grbl.on_report_options;
         grbl.on_report_options = report_options;
-
-        return true;
 
 }
