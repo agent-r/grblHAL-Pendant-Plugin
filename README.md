@@ -1,4 +1,4 @@
-# Bluetooth plugins
+## grblHAL-Pendant-Plugin
 
 * This plugin connects grblHAL to an ESP32 over Serial1.
 * The ESP32 provides a BLE link to a wireless pendant.
@@ -16,13 +16,11 @@
 2) insert the following code into your my_machine.h
 
 ```
-#define PENDANT_ENABLE      1         //  grbl/plugins_init.h
-#define N_AXIS 4                      //  grbl/config.h
-#define OVERRIDE_BUFSIZE 128          //  grbl.hal/override.h
+#define PENDANT_ENABLE 1
 
-#define SERIAL1_PORT	1
-#define UART1_RX    	(25u) // Not used, for info only
-#define UART1_TX    	(24u) // Not used, for info only
+#define SERIAL1_PORT   1
+#define UART1_RX       (25u)
+#define UART1_TX       (24u)
 ```
 
 3) insert the following code at the beginnig of file: grbl/plugins_init.h
