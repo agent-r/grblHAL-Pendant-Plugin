@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PENDANT_SERIAL_STREAM 1
+#define PENDANT_SERIAL_STREAM 0
 #define PENDANT_SERIAL_BAUDRATE  115200
 static io_stream_t *pendant_serial = NULL;
 

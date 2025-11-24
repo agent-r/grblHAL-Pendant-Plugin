@@ -16,11 +16,14 @@
 2) insert the following code into your my_machine.h
 
 ```
-#define PENDANT_ENABLE 1
+#define N_AXIS 4                      //  grbl/config.h
+#define OVERRIDE_BUFSIZE 128          //  grbl.hal/override.h
 
-#define SERIAL1_PORT   1
-#define UART1_RX       (25u)
-#define UART1_TX       (24u)
+#define PENDANT_ENABLE      1         //  grbl/plugins_init.h
+
+#define SERIAL_PORT	6    // PORT 6 routes to PIN 0 and 1
+// #define UART1_RX    	(0u) // not used, info only. for BLE-ESP32
+// #define UART1_TX    	(1u) // not used, info only. for BLE-ESP32
 ```
 
 3) insert the following code at the beginnig of file: grbl/plugins_init.h
