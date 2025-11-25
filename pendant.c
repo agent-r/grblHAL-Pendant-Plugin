@@ -41,9 +41,9 @@ static char JSON[INBUF_SIZE];
 static uint32_t SendMs = 0;
 static uint32_t SendAlwaysMs = 0;
 
-// #define pendant_debug_in 1                   // debug inputs and outputs
-// #define pendant_debug_in_raw 1
-// #define pendant_debug_out 1
+// #define pendant_debug_in 1                   // debug parsed inputs
+// #define pendant_debug_in_raw 1               // repeat raw json inputs
+// #define pendant_debug_out 1                  // debug outputs
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -196,7 +196,11 @@ static void pendant_send(sys_state_t state, bool StateChange) {
                         else if (N_AXIS == 4) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f}", StateStr, float_pos[0], float_pos[1], float_pos[2], float_pos[3]); }
                         // else if (N_AXIS == 5) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f,\"wb\":%.3f}"ASCII_EOL, string_state, float_pos[0], float_pos[1], float_pos[2], float_pos[3], float_pos[4]); }
                         
+                        if (pendant_serial->get_tx_buffer_count() > 0) {       // check if write buffer ist empty, otherwise clear write buffer and write new! Do i loose fast state changes???
+                                pendant_serial->reset_write_buffer();
+                        }
                         pendant_serial->write(wifi_out_buffer);
+
                         #ifdef pendant_debug_out
                                 report_message(wifi_out_buffer, Message_Debug);
                         #endif
@@ -228,7 +232,7 @@ static bool pendant_receive_callback(const uint8_t received_char) {
                 } 
                 else {
                         in_buffer_i = 0;                                 // Puffer voll, JSON verwerfen
-                        // BESSER KEIN DEBUG IM CALLBACK! // if (pendant_debug_in) hal.stream.write("[JSON overflow]" ASCII_EOL);
+                        // BESSER KEIN DEBUG IM CALLBACK!
                 }
         }
         else {
@@ -237,7 +241,7 @@ static bool pendant_receive_callback(const uint8_t received_char) {
                         in_buffer[in_buffer_i] = received_char;
                 } else {
                         in_buffer_i = 0;                                 // Puffer voll, JSON verwerfen
-                        // BESSER KEIN DEBUG IM CALLBACK! // // if (pendant_debug_in) hal.stream.write("[JSON overflow]" ASCII_EOL);
+                        // BESSER KEIN DEBUG IM CALLBACK! //
                 }
         }
 
