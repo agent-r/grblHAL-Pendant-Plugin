@@ -1,18 +1,3 @@
-/*
-
-   TODO:    ->  when STOPPING by "grbl.enqueue_realtime_command(CMD_STOP);",
-                iO-Sender does not recognize this. I have to manually click "STOP" in sender as well.
-
-            ->  Btw: Can I stop a HOMING process somehow?
-
-
-   TODO:    ->  I am using a handwheel with 100 ticks pre revolution.
-                When turning the wheel I send 5 to 10 Jog-Commands per Second,
-                processed by "grbl.enqueue_gcode("$J=G91X24F1000");".
-                This works very good for single ticks and slow moves, but when turning the wheel fast,
-                some commands get lost or are not processed. Transfer from Pendant to Plugin seems ok.
-                Do I overflow a buffer or something? How can I check this, before sending enquee a command?
- */
 
 #include "grbl/hal.h"
 #include "networking/cJSON.h"
@@ -211,7 +196,7 @@ static void pendant_send(sys_state_t state, bool StateChange) {
 }
 
 
-static bool pendant_receive_callback(const uint8_t received_char) {
+static void pendant_receive_callback(const uint8_t received_char) {
 
         static int in_buffer_i = 0;
         static char in_buffer[INBUF_SIZE];
@@ -221,7 +206,6 @@ static bool pendant_receive_callback(const uint8_t received_char) {
                 in_buffer[in_buffer_i] = received_char;
         }
         else if (received_char == '}') {                                // EXPECTING END OF JSON STRING
-
                 if (in_buffer_i < INBUF_SIZE - 2) {                      // CHECK SPACE FOR LAST CHARACTER + EOL
                         in_buffer_i++;
                         in_buffer[in_buffer_i] = received_char;
@@ -232,20 +216,21 @@ static bool pendant_receive_callback(const uint8_t received_char) {
                 } 
                 else {
                         in_buffer_i = 0;                                 // Puffer voll, JSON verwerfen
-                        // BESSER KEIN DEBUG IM CALLBACK!
+                        // DO NOT SERIAL-DEBUG IN CALLBACKS!
                 }
         }
         else {
                 if (in_buffer_i < INBUF_SIZE - 2) {
                         in_buffer_i++;
                         in_buffer[in_buffer_i] = received_char;
-                } else {
+                } 
+                else {
                         in_buffer_i = 0;                                 // Puffer voll, JSON verwerfen
-                        // BESSER KEIN DEBUG IM CALLBACK! //
+                        // DO NOT SERIAL-DEBUG IN CALLBACK! //
                 }
         }
 
-        return true;
+        return;
 }
 
 static void pendant_loop (sys_state_t state)
