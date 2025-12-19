@@ -46,7 +46,7 @@ static char JSON[INBUF_SIZE];
 static uint32_t SendMs = 0;
 static uint32_t SendAlwaysMs = 0;
 
-#define pendant_debug_in 1                   // debug parsed inputs
+#define pendant_debug_in 1                      // debug parsed inputs
 // #define pendant_debug_in_raw 1               // repeat raw json inputs
 // #define pendant_debug_out 1                  // debug outputs
 
