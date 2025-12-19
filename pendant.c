@@ -13,8 +13,8 @@ static on_report_options_ptr on_report_options;
 static on_execute_realtime_ptr on_execute_realtime;
 static on_state_change_ptr on_state_change;
 
-#define INBUF_SIZE 64               // I do not expect larger commands
-#define OUTBUF_SIZE 64             // I will not send larger State-Updates
+#define INBUF_SIZE 128               // I do not expect larger commands
+#define OUTBUF_SIZE 128             // I will not send larger State-Updates
 static bool JSON_received = false;
 static char JSON[INBUF_SIZE];
 
@@ -26,9 +26,9 @@ static char JSON[INBUF_SIZE];
 static uint32_t SendMs = 0;
 static uint32_t SendAlwaysMs = 0;
 
-// #define pendant_debug_in 1                   // debug parsed inputs
-// #define pendant_debug_in_raw 1               // repeat raw json inputs
-// #define pendant_debug_out 1                  // debug outputs
+  #define pendant_debug_in 1                   // debug parsed inputs
+  // #define pendant_debug_in_raw 1               // repeat raw json inputs
+  // #define pendant_debug_out 1                  // debug outputs
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
