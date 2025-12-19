@@ -1,3 +1,23 @@
+///////////////////////////////////////////////////////////
+///                                                     ///
+///     DONT FORGET TO SET                              ///
+///                                                     ///
+///////////////////////////////////////////////////////////
+///                                                     ///
+///     in mymachine.h                                  ///
+///                                                     ///
+///     #define PENDANT_ENABLE 1                        ///
+///                                                     ///
+////////////////////////////////////////////////////////////
+///                                                     ///
+///     in grbl/plugins_init.h                          ///
+///                                                     ///
+///     #if PENDANT_ENABLE                              ///
+///             extern void pendant_init (void);        ///
+///             pendant_init();                         ///
+///     #endif                                          ///
+///                                                     ///
+///////////////////////////////////////////////////////////
 
 #include "grbl/hal.h"
 #include "networking/cJSON.h"
@@ -26,9 +46,9 @@ static char JSON[INBUF_SIZE];
 static uint32_t SendMs = 0;
 static uint32_t SendAlwaysMs = 0;
 
-  #define pendant_debug_in 1                   // debug parsed inputs
-  // #define pendant_debug_in_raw 1               // repeat raw json inputs
-  // #define pendant_debug_out 1                  // debug outputs
+#define pendant_debug_in 1                   // debug parsed inputs
+// #define pendant_debug_in_raw 1               // repeat raw json inputs
+// #define pendant_debug_out 1                  // debug outputs
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -191,7 +211,7 @@ static void pendant_send(sys_state_t state, bool StateChange) {
                         #endif
                 }
         }
-        else { report_message("PENDANT -> SEND -> STREAM IS NOT CONNECTED", Message_Error); }
+        else { report_message("[PENDANT PLUGIN]  SEND -> STREAM IS NOT CONNECTED", Message_Error); }
 
 }
 
@@ -280,21 +300,21 @@ static void report_options (bool newopt)
         on_report_options(newopt);
         if(!newopt) { 
                 
-                report_message("PENDANT -> STARTED", Message_Info);
+                report_message("[PENDANT PLUGIN] STARTED", Message_Info);
 
                 if (!pendant_serial) {
                         pendant_serial = (io_stream_t *) stream_open_instance(PENDANT_SERIAL_STREAM, PENDANT_SERIAL_BAUDRATE, pendant_receive_callback, "Pendant");
                 }
 
                 char str[32];
-                sprintf(str, "PENDANT -> STREAM INSTANCE %u", pendant_serial->instance);
+                sprintf(str, "[PENDANT PLUGIN] STREAM INSTANCE %u", pendant_serial->instance);
                 report_message(str, Message_Info);
 
-                if (pendant_serial->is_connected) { report_message("PENDANT -> STREAM IS CONNECTED", Message_Info); }
-                else { report_message("PENDANT -> STREAM IS NOT CONNECTED", Message_Error); }
+                if (pendant_serial->is_connected) { report_message("[PENDANT PLUGIN] STREAM IS CONNECTED", Message_Info); }
+                else { report_message("[PENDANT PLUGIN] STREAM IS NOT CONNECTED", Message_Error); }
 
-                if (pendant_serial->type == StreamType_Serial)  { report_message("PENDANT -> STREAM IS SERIAL", Message_Info); }
-                else { report_message("PENDANT -> STREAM IS NOT SERIAL", Message_Error); }
+                if (pendant_serial->type == StreamType_Serial)  { report_message("[PENDANT PLUGIN] STREAM IS SERIAL", Message_Info); }
+                else { report_message("[PENDANT PLUGIN] STREAM IS NOT SERIAL", Message_Error); }
 
         }        
 }
