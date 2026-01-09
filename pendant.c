@@ -22,6 +22,7 @@
 #include "grbl/hal.h"
 #include "networking/cJSON.h"
 #include "grbl/protocol.h"
+#include "grbl/system.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -33,22 +34,22 @@ static on_report_options_ptr on_report_options;
 static on_execute_realtime_ptr on_execute_realtime;
 static on_state_change_ptr on_state_change;
 static on_probe_completed_ptr on_probe_completed;
+static on_realtime_report_ptr on_realtime_report;
 
 #define INBUF_SIZE 128               // I do not expect larger commands
 #define OUTBUF_SIZE 128             // I will not send larger State-Updates
 static bool JSON_received = false;
 static char JSON[INBUF_SIZE];
 
-// #define AliveTicks 1000 * 2          // check for "OK" every 2 seconds
 #define SendTicks 1000 / 8              // send 8 position updates per second (if position changes)
 #define SendAlwaysTicks 1000 / 1        // send 1 update per second if nothing changes (keep alive!)
 
-// static uint32_t CheckAliveMs = 0;
 static uint32_t SendMs = 0;
 static uint32_t SendAlwaysMs = 0;
 
-//
 volatile bool probe_completed_flag = false;
+volatile bool probe_triggered_flag = false;
+volatile bool probe_old_state;
 
 #define pendant_debug_in 1                      // debug parsed inputs
 // #define pendant_debug_in_raw 1               // repeat raw json inputs
@@ -173,19 +174,23 @@ static void pendant_send(sys_state_t state, bool StateChange) {
                         memcpy(float_pos_old, float_pos, sizeof(float_pos));
                 }
 
-
-                if (probe_completed_flag) 
-                {
-                        // snprintf();
-                        report_message("[PENDANT PLUGIN] PROBING -> COMPLETED", Message_Debug);
-                        probe_completed_flag = false;
-                }
-
                 // prepare JSON String for Sending
                 if (StateChange) {
+
+                        char probeStr[16] = "none";
+
+                        if (probe_triggered_flag) {
+                                strncpy(probeStr, "triggered", sizeof(probeStr) - 1);
+                                probe_triggered_flag = false;  // zurücksetzen nach Versand
+                        } 
+                        else if (probe_completed_flag) {
+                                strncpy(probeStr, "finished", sizeof(probeStr) - 1);
+                                probe_completed_flag = false;  // zurücksetzen nach Versand
+                        }
+
                         char wifi_out_buffer[OUTBUF_SIZE];
-                        if (N_AXIS == 3) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f}", StateStr, float_pos[0], float_pos[1], float_pos[2]); }
-                        else if (N_AXIS == 4) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f}", StateStr, float_pos[0], float_pos[1], float_pos[2], float_pos[3]); }
+                        if (N_AXIS == 3) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"probe\":\"%s\"}", StateStr, float_pos[0], float_pos[1], float_pos[2], probeStr); }
+                        else if (N_AXIS == 4) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f,\"probe\":\"%s\"}", StateStr, float_pos[0], float_pos[1], float_pos[2], float_pos[3], probeStr); }
                         // else if (N_AXIS == 5) { snprintf(wifi_out_buffer, sizeof(wifi_out_buffer), "{\"state\":\"%s\",\"wx\":%.3f,\"wy\":%.3f,\"wz\":%.3f,\"wa\":%.3f,\"wb\":%.3f}"ASCII_EOL, string_state, float_pos[0], float_pos[1], float_pos[2], float_pos[3], float_pos[4]); }
                         
                         if (pendant_serial->get_tx_buffer_count() > 0) {       // check if write buffer ist empty, otherwise clear write buffer and write new! Do i loose fast state changes???
@@ -282,13 +287,22 @@ static void state_changed(sys_state_t state)
 
 static void probe_completed()
 {
-
         probe_completed_flag = true;
-
-        sys_state_t state = state_get();
-        pendant_send(state, true);
-
         if(on_probe_completed) { on_probe_completed(); }
+}
+
+static void realtime_report(stream_write_ptr stream_write, report_tracking_flags_t report) {
+        
+        probe_state_t probe_state = hal.probe.get_state(); // aktueller Probe-Taster Status
+        
+        if (probe_state.triggered && (probe_old_state != probe_state.triggered)) {
+            probe_triggered_flag = true;
+        }
+
+        probe_old_state = probe_state.triggered;
+
+        if (on_realtime_report) { on_realtime_report(stream_write, report); }
+
 }
 
 // time to set up serial stream
@@ -335,6 +349,10 @@ void pendant_init (void)
         // Add Probe-Completed-Callback
         on_probe_completed = grbl.on_probe_completed;
         grbl.on_probe_completed = probe_completed;
+
+        // Add Realtime-Report Callback
+        on_realtime_report = grbl.on_realtime_report;
+        grbl.on_realtime_report = realtime_report;
 
         // Add report
         on_report_options = grbl.on_report_options;
