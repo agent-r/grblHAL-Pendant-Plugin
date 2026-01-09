@@ -32,6 +32,7 @@ static io_stream_t *pendant_serial = NULL;
 static on_report_options_ptr on_report_options;
 static on_execute_realtime_ptr on_execute_realtime;
 static on_state_change_ptr on_state_change;
+static on_probe_completed_ptr on_probe_completed;
 
 #define INBUF_SIZE 128               // I do not expect larger commands
 #define OUTBUF_SIZE 128             // I will not send larger State-Updates
@@ -45,6 +46,9 @@ static char JSON[INBUF_SIZE];
 // static uint32_t CheckAliveMs = 0;
 static uint32_t SendMs = 0;
 static uint32_t SendAlwaysMs = 0;
+
+//
+volatile bool probe_completed_flag = false;
 
 #define pendant_debug_in 1                      // debug parsed inputs
 // #define pendant_debug_in_raw 1               // repeat raw json inputs
@@ -74,25 +78,19 @@ static void pendant_parse_and_send_cmd(const char * const cmd_buffer) {
                         }
                         else if (strcmp(str_cmd, "STOP") == 0)
                         {
-                                // grbl.enqueue_realtime_command(CMD_JOG_CANCEL);
                                 grbl.enqueue_realtime_command(CMD_STOP);
-                                // strncpy(SysExecuteCommand, "$", sizeof(SysExecuteCommand) - 1);
-                                // system_execute_line(SysExecuteCommand);     // must be at least "LINE_BUFFER_SIZE" long ???
                         }
                         else if (strcmp(str_cmd, "HOME") == 0)
                         {
                                 strncpy(SysExecuteCommand, "$H", sizeof(SysExecuteCommand) - 1);
-                                system_execute_line(SysExecuteCommand);     // must be at least "LINE_BUFFER_SIZE" long ???
-                                // system_execute_line("$H");
+                                system_execute_line(SysExecuteCommand);
                         }
                         else if (strcmp(str_cmd, "UNLOCK") == 0)
                         {
-                                // system_execute_line("$X");
                                 strncpy(SysExecuteCommand, "$X", sizeof(SysExecuteCommand) - 1);
-                                system_execute_line(SysExecuteCommand);     // must be at least "LINE_BUFFER_SIZE" long ???
+                                system_execute_line(SysExecuteCommand);
                         }
                 }
-                // KeepAliveMs = hal.get_elapsed_ticks() + AliveTicks;
         }
 
         else if (cJSON_HasObjectItem(cmd_json,"gcode")) {
@@ -106,10 +104,8 @@ static void pendant_parse_and_send_cmd(const char * const cmd_buffer) {
                         #endif
                         grbl.enqueue_gcode(str_gcode);
                 }
-                // KeepAliveMs = hal.get_elapsed_ticks() + AliveTicks;
         }
 
-        // this is for receivong messages (from esp-ble/wifi module debug, for example)
         else if (cJSON_HasObjectItem(cmd_json,"msg")) {
                 js_cmd = cJSON_GetObjectItemCaseSensitive(cmd_json,"msg");
 
@@ -118,24 +114,7 @@ static void pendant_parse_and_send_cmd(const char * const cmd_buffer) {
                         const char * str_msg = js_cmd->valuestring;
                         hal.stream.write(str_msg); {hal.stream.write(ASCII_EOL);}
                 }
-                // KeepAliveMs = hal.get_elapsed_ticks() + AliveTicks;
         }
-        /*
-           else if (cJSON_HasObjectItem(cmd_json,"OK")) {
-                KeepAliveMs = hal.get_elapsed_ticks() + AliveTicks;
-                #ifdef pendant_debug_in
-                        hal.stream.write("[OK]"); hal.stream.write(ASCII_EOL);
-                #endif
-           }
-         */
-
-        // This is a keep-alive transmission from the Pendant. If not received once in 2 seconds, stop sending state updates
-        // else if (strcmp(cmd_buffer, "{\"OK\"}") == 0) {
-        //         KeepAliveMs = hal.get_elapsed_ticks() + AliveTicks;
-        //      #ifdef pendant_debug_in
-        //              hal.stream.write("[OK]"); hal.stream.write(ASCII_EOL);
-        //      #endif
-        // }
 
         cJSON_Delete(cmd_json);
 }
@@ -194,6 +173,14 @@ static void pendant_send(sys_state_t state, bool StateChange) {
                         memcpy(float_pos_old, float_pos, sizeof(float_pos));
                 }
 
+
+                if (probe_completed_flag) 
+                {
+                        // snprintf();
+                        report_message("[PENDANT PLUGIN] PROBING -> COMPLETED", Message_Debug);
+                        probe_completed_flag = false;
+                }
+
                 // prepare JSON String for Sending
                 if (StateChange) {
                         char wifi_out_buffer[OUTBUF_SIZE];
@@ -211,7 +198,7 @@ static void pendant_send(sys_state_t state, bool StateChange) {
                         #endif
                 }
         }
-        else { report_message("[PENDANT PLUGIN]  SEND -> STREAM IS NOT CONNECTED", Message_Error); }
+        else { report_message("[PENDANT PLUGIN] SEND -> STREAM IS NOT CONNECTED", Message_Error); }
 
 }
 
@@ -282,7 +269,7 @@ static void pendant_loop (sys_state_t state)
                 }
         // }
 
-        on_execute_realtime(state);
+        if (on_execute_realtime) { on_execute_realtime(state); }
 }
 
 // report if state has changed (some states show up for only very short time - needed for probing-alarms)
@@ -293,11 +280,21 @@ static void state_changed(sys_state_t state)
         if(on_state_change) { on_state_change(state); }
 }
 
+static void probe_completed()
+{
+
+        probe_completed_flag = true;
+
+        sys_state_t state = state_get();
+        pendant_send(state, true);
+
+        if(on_probe_completed) { on_probe_completed(); }
+}
 
 // time to set up serial stream
 static void report_options (bool newopt)
 {
-        on_report_options(newopt);
+
         if(!newopt) { 
                 
                 report_message("[PENDANT PLUGIN] STARTED", Message_Info);
@@ -317,6 +314,9 @@ static void report_options (bool newopt)
                 else { report_message("[PENDANT PLUGIN] STREAM IS NOT SERIAL", Message_Error); }
 
         }        
+
+        if (on_report_options) { on_report_options(newopt); }
+        
 }
 
 
@@ -332,8 +332,13 @@ void pendant_init (void)
         on_state_change = grbl.on_state_change;
         grbl.on_state_change = state_changed;
 
+        // Add Probe-Completed-Callback
+        on_probe_completed = grbl.on_probe_completed;
+        grbl.on_probe_completed = probe_completed;
+
         // Add report
         on_report_options = grbl.on_report_options;
         grbl.on_report_options = report_options;
+
 
 }
