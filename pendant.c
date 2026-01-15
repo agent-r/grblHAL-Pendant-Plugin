@@ -26,10 +26,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#define PENDANT_PLUGIN_VERSION "2.2"
+
 #define PENDANT_SERIAL_STREAM 0
 #define PENDANT_SERIAL_BAUDRATE  115200
 static io_stream_t *pendant_serial = NULL;
+static bool pendant_stream_initialized = false;
 
+static on_stream_changed_ptr on_stream_changed;
 static on_report_options_ptr on_report_options;
 static on_execute_realtime_ptr on_execute_realtime;
 static on_state_change_ptr on_state_change;
@@ -311,8 +315,10 @@ static void report_options (bool newopt)
 
         if(!newopt) { 
                 
-                report_message("[PENDANT PLUGIN] STARTED", Message_Info);
+                report_plugin("PENDANT", PENDANT_PLUGIN_VERSION);
+                // report_message("[PENDANT PLUGIN] STARTED", Message_Info);
 
+                /*
                 if (!pendant_serial) {
                         pendant_serial = (io_stream_t *) stream_open_instance(PENDANT_SERIAL_STREAM, PENDANT_SERIAL_BAUDRATE, pendant_receive_callback, "Pendant");
                 }
@@ -327,6 +333,7 @@ static void report_options (bool newopt)
                 if (pendant_serial->type == StreamType_Serial)  { report_message("[PENDANT PLUGIN] STREAM IS SERIAL", Message_Info); }
                 else { report_message("[PENDANT PLUGIN] STREAM IS NOT SERIAL", Message_Error); }
 
+                */
         }        
 
         if (on_report_options) { on_report_options(newopt); }
@@ -334,29 +341,47 @@ static void report_options (bool newopt)
 }
 
 
+void stream_changed(stream_type_t type) {
+
+        if (hal.stream != NULL && hal.stream->type == StreamType_Serial) {
+                if (!pendant_stream_initialized) {
+                        pendant_serial = (io_stream_t *) stream_open_instance(PENDANT_SERIAL_STREAM, PENDANT_SERIAL_BAUDRATE, pendant_receive_callback, "Pendant");
+                }
+                pendant_stream_initialized = true;
+                report_message("[PENDANT - STRAM OPENED]", Message_Info);
+        }
+
+        if (on_stream_changed) {
+                on_stream_changed(type);
+        }
+}
+
 // initialize pendant
 void pendant_init (void)
 {
 
-        // Add pendant_update function to grblHAL foreground process
+        // ad stream changed callback
+        on_stream_changed = grbl.on_stream_changed;
+        grbl.on_stream_changed = stream_changed;
+
+        // Add pendant_loop() to grblHAL foreground process
         on_execute_realtime = grbl.on_execute_realtime;
         grbl.on_execute_realtime = pendant_loop;
 
-        // Add state change interrupt
+        // Add state change callback
         on_state_change = grbl.on_state_change;
         grbl.on_state_change = state_changed;
 
-        // Add Probe-Completed-Callback
+        // Add probe completed callback
         on_probe_completed = grbl.on_probe_completed;
         grbl.on_probe_completed = probe_completed;
 
-        // Add Realtime-Report Callback
+        // Add realtime report callback
         on_realtime_report = grbl.on_realtime_report;
         grbl.on_realtime_report = realtime_report;
 
-        // Add report
+        // Add report options callback
         on_report_options = grbl.on_report_options;
         grbl.on_report_options = report_options;
-
 
 }
